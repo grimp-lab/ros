@@ -21,7 +21,8 @@ import socket
 import datetime as dt
 
 import numpy as np
-from netCDF4 import Dataset, num2date
+#from netCDF4 import Dataset, num2date
+import xarray as xr
 
 
 class CETB:
@@ -30,7 +31,7 @@ class CETB:
     available at http://nsidc.org/data/nsidc-0630
     """
 
-    def __init__(self, plateform_sensor, date, hemisphere='N'):
+    def __init__(self, plateform_sensor, date, path_in, hemisphere='N'):
         '''
         Specify parameters to load brightness temperatures
 
@@ -42,28 +43,18 @@ class CETB:
         self.platform_sensor = plateform_sensor
         self.hemisphere = hemisphere
         self.date = date
+        self.path_in = path_in
 
-        # Paths
-        if socket.gethostname().find('gs615-montblanc') >= 0:
-            # path Ludo
-            self.path_in = os.getenv('HOME') + '/Spaceborne/MEaSUREs_CETB_' + self.platform_sensor + '/'
-        elif socket.gethostname().find('gs615-oibserve') >= 0:
-            # path server
-            self.path_in = '/scratch/satellite/MEaSUREs_CETB_' + self.platform_sensor + '/'
-        elif socket.gethostname().find('XXX') >= 0:
-            # path Jayanthi
-            self.path = os.getenv('HOME') + '/XXX/'
-        elif socket.gethostname().find('flsh-geoal13') >= 0:
-            self.path_in = '/mnt/e/Measure/'
-        elif socket.gethostname().find('flsh-geoal16') >= 0:
-            self.path_in = '/mnt/f/'
-            self.path_in2 = '/mnt/d/Brightness_temperature/'
-            self.path_in3 = '/mnt/g/'
-            path_out = '/mnt/f/result/'
-        elif socket.gethostname().find('DESKTOP-I39H02F') >= 0:
-            self.path_in = '/mnt/e/Measure/'
-        elif socket.gethostname().find('flsh-geoal30') >= 0:
-            self.path_in = 'D:/JALANGLOIS/'
+        # # Paths
+        # if socket.gethostname().find('flsh-geoal13') >= 0:
+        #     self.path_in = '/mnt/e/Measure/'
+        # elif socket.gethostname().find('flsh-geoal16') >= 0:
+        #     self.path_in = '/mnt/f/'
+        #     self.path_in2 = '/mnt/d/Brightness_temperature/'
+        #     self.path_in3 = '/mnt/g/'
+        #     path_out = '/mnt/f/result/'
+        # elif socket.gethostname().find('flsh-geoal30') >= 0:
+        #     self.path_in = 'D:/JALANGLOIS/'
 
         '''
             Sensor    Channel Frequency (GHz) and Polarization
@@ -124,6 +115,7 @@ class CETB:
         self.year = date.strftime("%Y")[0:4]
         self.doy = '%03d' % date.timetuple().tm_yday
         print("CETB Initialized")
+
 
     def ch_platform_sensor(self, platform_sensor):
         self.platform_sensor = platform_sensor
@@ -521,14 +513,16 @@ class CETB:
                                    orbit + '-' + interpolation_method + '-%s-%s.nc'%(csu, version)
 
 
-                        ncfile = Dataset(filename, "r", format="NETCDF4")
-                        print(filename)
+                        #ncfile = Dataset(filename, "r", format="NETCDF4")
+                        #print(filename)
+                        #print ncfile size in x and y
+                        #print(np.squeeze(ncfile.variables['TB'][:]).shape)
 
 
                         # data variables, w/ dimension (time=1, rows, cols):
                         # crs, TB, TB_num_samples, Incidence_angle, TB_std_dev, TB_time
                         # crs means coordinate reference system
-                        setattr(channel2, 'tb' + '_' + orbit, np.squeeze(ncfile.variables['TB'][:]))
+                        #setattr(channel2, 'tb' + '_' + orbit, np.squeeze(ncfile.variables['TB'][:]))
                         # setattr(channel2, 'std', np.squeeze(
                         #         ncfile.variables['TB_std_dev'][:]))
                         # setattr(channel2, 'ftp', np.squeeze(
@@ -541,6 +535,15 @@ class CETB:
                         # ncfile = Dataset(filename, "r", format="NETCDF4")
                         # yo = np.squeeze(ncfile.variables['TB_std_dev'][:])
                         # setattr(channel2, 'stdstd', np.abs(yo - channel2.std))
+
+                        # Open the NetCDF file using xarray
+                        ds = xr.open_dataset(filename, decode_times=False)
+
+                        # Print the filename (optional)
+                        print(filename)
+
+                        # Access and set the 'TB' variable, squeezing it to remove single-dimensional entries
+                        setattr(channel2, 'tb' + '_' + orbit, ds['TB'].squeeze().values)
 
 
 
@@ -558,6 +561,14 @@ class CETB:
                             setattr(self, 'H89', channel2)
 
 
+                        # Access and set the 'x' and 'y' variables, squeezing them as well
+                        self.x = ds['x'].squeeze().values
+                        self.y = ds['y'].squeeze().values
+
+                        # Close the dataset (not strictly necessary with xarray, but good practice)
+                        ds.close()
+
+
 
                         # d = ncfile.variables['time']
                         # date = d[:]  # days since 1972-01-01
@@ -568,9 +579,9 @@ class CETB:
                         # print(greg_date)
                         # print greg_date[0].strftime("%Y-%m-%d")
                         # print greg_date[0].strftime("%b %d %Y")
-                        self.x = np.squeeze(ncfile['x'][:])
-                        self.y = np.squeeze(ncfile['y'][:])
-                        ncfile.close()
+                        # self.x = np.squeeze(ncfile['x'][:])
+                        # self.y = np.squeeze(ncfile['y'][:])
+                        # ncfile.close()
 
                     # Replace empty cell by nan
                     # channel2.tb_M[channel2.tb_M==[]] = np.nan
@@ -737,34 +748,32 @@ class CETB:
         :return: lat, lon, landcover
         '''
 
-        # Paths
-        print(socket.gethostname())
-        if socket.gethostname().find('gs615-montblanc') >= 0:
-            # path Ludo
-            self.path_in = os.getenv('HOME') + '/PMESDR/GeolocationTools/'
-        elif socket.gethostname().find('gs615-oibserve') >= 0:
-            # path server
-            self.path_in = os.getenv('HOME') + '/PMESDR/GeolocationTools/'
-        elif socket.gethostname().find('discover') >= 0:
-            # path Jayanthi
-            self.path_in = '/gpfsm/dnb32/jsrikish/ROS/Grid/EASE2/'
-        elif socket.gethostname().find('flsh-geoal13') >= 0:
-            self.path_in = '/mnt/e/'
+        # # Paths
+        # print(socket.gethostname())
+        # if socket.gethostname().find('gs615-montblanc') >= 0:
+        #     # path Ludo
+        #     self.path_in = os.getenv('HOME') + '/PMESDR/GeolocationTools/'
+        # elif socket.gethostname().find('gs615-oibserve') >= 0:
+        #     # path server
+        #     self.path_in = os.getenv('HOME') + '/PMESDR/GeolocationTools/'
+        # elif socket.gethostname().find('discover') >= 0:
+        #     # path Jayanthi
+        #     self.path_in = '/gpfsm/dnb32/jsrikish/ROS/Grid/EASE2/'
+        # elif socket.gethostname().find('flsh-geoal13') >= 0:
+        #     self.path_in = '/mnt/e/'
 
         # Load coordinates
-        filename = 'EASE2_' + hemisphere.upper() + str(resolution) + 'km.geolocation.v0.9.nc'
-        ncfile = Dataset(self.path_in + "Measure/tool/" + filename, "r", format="NETCDF4")
-        x = np.squeeze(ncfile['x'][:])
-        y = np.squeeze(ncfile['y'][:])
-        lat = np.asarray(ncfile.variables['latitude'])
-        lon = np.asarray(ncfile.variables['longitude'])
+        filename = self.path_in + 'Measure/tool/EASE2_' + hemisphere.upper() + str(resolution) + 'km.geolocation.v0.9.nc'
+        # Open the NetCDF file using xarray
+        ds = xr.open_dataset(filename, decode_times=False)
+        #ncfile = Dataset(self.path_in + "Measure/tool/" + filename, "r", format="NETCDF4")
+        x = np.squeeze(ds['x'][:])
+        y = np.squeeze(ds['y'][:])
+        lat = np.asarray(ds.variables['latitude'])
+        lon = np.asarray(ds.variables['longitude'])
 
-        # Load land mask (255 = ocean)
-        landcover = np.fromfile(
-            self.path_in + "Measure/tool/" + 'EASE2_' + hemisphere.upper() + str(
-                resolution) + 'km.LOCImask_land50_coast0km.5760x5760.bin', dtype=np.dtype('u1'))
-        landcover = np.reshape(np.asarray(landcover), (5760, 5760))
-        return(x, y, lat, lon, landcover)
+
+        return(x, y, lat, lon)
 
 
 class TBclass(object):

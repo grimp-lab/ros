@@ -1,0 +1,9 @@
+
+__pycache__/atmo_correction.cpython-311.pyc
+__pycache__/utils_cetb.cpython-311.pyc
+atmo_corr.ipynb
+build_tb_array.ipynb
+detect_ros.py
+test.ipynb
+test_grp.ipynb
+build_netcdf_snowcover.ipynb

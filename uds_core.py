@@ -407,7 +407,7 @@ if __name__ == "__main__":
                 tb89h = h89[:,:,0]
                 print(tb19v.max())
 
-                # ROS algorithm
+                # ROS algorithm to calculate grp and applied threshold to it to detect ROS (1 or 0)
                 if run_algo:
                     print("Calculing ROS")
                     ros, grp, dh = uds_ros(tb19v, tb19h, tb37v, tb37h)
@@ -417,7 +417,9 @@ if __name__ == "__main__":
                         rosL, maxclass = rl.ros_algorithm(v18, h18, v36, h36, h89, None)
                         rosL = np.where(area_mask, rosL, np.nan)
 
-                # save variable ros
+                
+                
+                # save variable ros in a netcdf file
                 print("Saving in file for date %s"%datep)
                 ncfile = netcdf.netcdf_file(output_file, 'w')
                 ncfile.content = 'Rain-on-snow event detection based on Dolant et al. using passive microwave ' + sensor + 'observations on the ' + str(

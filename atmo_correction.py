@@ -1,102 +1,127 @@
-
-
-import numpy as np
 import os
+import datetime as dt
 import xarray as xr
-from math import sin, cos, sqrt, atan2, radians
+from pyproj import CRS
 
 
-def get_closest_coord(lat, lon, latg, long):
-    R = 6373.0
+"""
+python atmo_correction.py
 
-    lat1 = np.radians(lat)
-    lon1 = np.radians(lon)
-    lat2 = np.radians(latg)
-    lon2 = np.radians(long)
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-    distance = R * c
-    index = np.unravel_index(abs(distance).argmin(), distance.shape)
-    return index
-
-def add_coords_NARR(lat, lon, link_dict, infile, outfile):
-    NARR_data_file=infile
-    grid = xr.open_dataset(NARR_data_file)
-    latg = grid.lat.values
-    print(latg.shape)
-    long = grid.lon.values
-    y, x = get_closest_coord(lat, lon, latg, long)
-    coord_string = "%s_%s"%(str(round(lon,4)), str(round(lat,4)))
-    link_dict.update({coord_string:(x, y)})
-    np.save(outfile, link_dict)
-    return link_dict
-
-def get_pwat(lat, lon, link_dict=None, data=None):
-    coord_string = "%s_%s"%(str(round(lon,4)), str(round(lat,4)))
-    # print(link_dict)
-    x, y = link_dict.get(coord_string)
-    pwat = data.isel(x=x, y=y).pr_wtr.values
-    return pwat
-
-def get_pwat2(data_set=None, date=None, lat=None, lon=None):
-    pwat_file = os.path.join(data_folder, "pr_wtr.%s.nc"%str(date.year))
-    #data = dataset.sel(time=date)
-    error = (np.sqrt((data.lat.values-lat)**2 + (data.lon.values-lon)**2))
-    index = np.unravel_index(abs(error).argmin(), error.shape)
-    return data.isel(x=index[1], y=index[0]).pr_wtr.values
+Purpose: apply atmospheric correction to brightness temperature data using precipitable water 
 
 
+Revisions:
+date     |               reason
 
-def get_closest_coord(lat, lon, latg, long):
-    R = 6373.0
+"""
+__author__ = "Josée-Anne Langlois, Vincent Sasseville"
+__version__ = "01"
+__maintainer__ = "Josée-Anne Langlois"
+__email__ = "josee-anne.langlois@usherbrooke.ca"
+__status__ = "Dvp"
+__date__ = "6.2024"
 
-    lat1 = np.radians(lat)
-    lon1 = np.radians(lon)
-    lat2 = np.radians(latg)
-    lon2 = np.radians(long)
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
-    distance = R * c
-    index = np.unravel_index(abs(distance).argmin(), distance.shape)
-    return index
-    # return latg[index[0], index[1]], long[index[0], index[1]]
-
-
-def atm_tb_up(pwat, freq):
-    if abs(freq - 11e9) <= 2e9 :
-        return 0.10808*pwat + 7.2343
-    elif abs(freq - 19e9) <= 2e9:
-        return 1.0291*pwat + 8.7212
-    elif abs(freq - 37e9) <= 2e9:
-        return 0.62725*pwat + 25.04
-    elif abs(freq - 89e9) <= 2e9:
-        return 2.3766*pwat + 47.37
+def atm_tb_up(freq):
+    '''This function provide the parameters to calculate the upwelling atmospheric brightness temperature for a given frequency
+    Roy, A., 2014: Modélisation de l,émission micro-onde hivernale en foret boréale Canadienne. Ph.D. thesis, Université de 
+    Sherbrooke, 242 pp., http://savoirs.usherbrooke.ca/handle/11143/70.
+    See also Sasseville, et al., 2024'''
+    if abs(freq - 11) <= 2 :
+        return [0.10808, 7.2343]
+    elif abs(freq - 19) <= 2:
+        return [1.0291, 8.7212]
+    elif abs(freq - 37) <= 2:
+        return [0.62725, 25.04]
+    elif abs(freq - 89) <= 2:
+        return [2.3766, 47.37]
 
 
-def atm_trans(pwat,freq):
-    if abs(freq - 11e9) <= 2e9 :
-        return 1.2204e-6*pwat + 0.97925
-    elif abs(freq - 19e9) <= 2e9:
-        return -0.0033509*pwat + 0.97666
-    elif abs(freq - 37e9) <= 2e9:
-        return -0.0017882*pwat + 0.91335
-    elif abs(freq - 89e9) <= 2e9:
-        return -0.0080878*pwat + 0.8178
-
-def atm_tb_down(pwat, freq):
-    if abs(freq - 11e9) <= 2e9 :
-        return 0.097167*pwat + 4.0454
-    elif abs(freq - 19e9) <= 2e9:
-        return 0.97685*pwat + 5.189
-    elif abs(freq - 37e9) <= 2e9:
-        return 0.60846*pwat + 20.656
-    elif abs(freq - 89e9) <= 2e9:
-        return 2.4985*pwat + 42.762
+def atm_trans(freq):
+    '''This function provide the parameters to calculate the atmospheric transmittance for a given frequency'''
+    if abs(freq - 11) <= 2 :
+        return [1.2204e-6, 0.97925]
+    elif abs(freq - 19) <= 2:
+        return[-0.0033509, 0.97666]
+    elif abs(freq - 37) <= 2:
+        return [-0.0017882, 0.91335]
+    elif abs(freq - 89) <= 2:
+        return [-0.0080878, 0.8178]
+    
 
 
-def correct_tb(tb_mes, freq, pwat):
-    return (tb_mes - atm_tb_up(pwat, freq))/atm_trans(pwat, freq)
+if __name__ == '__main__':
+    
+    #read precipitable water from NARR file (one nc file per year)
+    folder_project = 'D:/JALANGLOIS/'
+    start_date = dt.datetime(2023, 1, 1)
+    end_date = dt.datetime(2023, 1, 31)
+    year = start_date.year
+    pwat_file = os.path.join(folder_project, 'pwat', 'pr_wtr.%s.nc'%(str(year)))
+    hemisphere = 'N'
+    select_region = 'aac'
+
+    yeardoy_start = start_date.strftime('%Y%j')
+    yeardoy_end = end_date.strftime('%Y%j')
+    
+
+    # Define the CRS for NARR (Northern Lambert Conformal Conic)
+    narr_crs = CRS.from_proj4 ('+proj=lcc +lat_0=50 +lon_0=-107 +lat_1=50 +lat_2=50 +x_0=5632642.22547 +y_0=4612545.65137 +datum=WGS84 +units=m +no_defs +type=crs')
+
+
+    #Path to the file with brightness temperature that needs to be corrected
+    tb_file = os.path.join(folder_project, 'Measure','combined', str(year), 'tb_%s_%s_%s.nc'%(str(yeardoy_start), str(yeardoy_end), select_region))
+
+    #open precipitable water in the atmosphere file from NARR
+    # Load the datasets 
+    pr_wtr_ds = xr.open_dataset(pwat_file)
+
+
+    # load brightness temperature file
+    tb_ds = xr.open_dataset(tb_file)
+
+    #assign projection to tb_ds
+    tb_ds = tb_ds.rio.write_crs(CRS.from_epsg(6931))
+
+
+    #drop lat lon coordinates to keep only x and y
+    pr_wtr_ds = pr_wtr_ds.drop(['lat', 'lon'])
+
+
+    # Assign CRS to pr_wtr and reproject to EPSG:6931
+    pr_wtr_ds = pr_wtr_ds.rio.write_crs(narr_crs.to_string())
+
+    pr_wtr_reprojected = pr_wtr_ds['pr_wtr'].rio.reproject('EPSG:6931')
+
+    # Use the correct coordinates for spatial alignment with the file for Brightness Temperature
+    pr_wtr_aligned = pr_wtr_reprojected.interp_like(tb_ds, method='nearest')
+
+    # Resample pr_wtr to match TB's temporal resolution
+    pr_wtr_resampled = pr_wtr_aligned.interp(time=tb_ds.time)
+
+    #add precipitable water as a variable in the dataset of the Brightness temperature
+    tb_ds['pr_wtr'] = pr_wtr_resampled.sel(time=tb_ds.time)
+    
+    #Calculate a new TB_corr variables with atmospheric correction using precipitable water
+
+    #create a list of with the variables names including TB, but without std_dev
+    tb_vars = [var for var in tb_ds.data_vars if 'TB' in var and 'std_dev' not in var]
+
+    for tb_var in tb_vars:
+        #extract the frequency of the channel and remove H or V
+        freq = tb_var.split('_')[1].replace('H','').replace('V','')
+        
+        #get the atmospheric correction parameters
+        atm_tb_up_params = atm_tb_up(int(freq))
+        atm_trans_params = atm_trans(int(freq))
+        
+        #calculate the atmospheric correction
+        atm_tb_up_ds = atm_tb_up_params[0] * tb_ds['pr_wtr'] + atm_tb_up_params[1]
+        atm_trans_ds = atm_trans_params[0] * tb_ds['pr_wtr'] + atm_trans_params[1]
+
+        #calculate the corrected TB and replace the original TB
+        tb_ds[tb_var] = tb_ds[tb_var] - atm_tb_up_ds/atm_trans_ds
+
+    #write as netcdf
+    output_file = os.path.join(folder_project, 'Measure','combined', str(year), 'corr_tb_%s_%s_%s.nc'%(str(yeardoy_start), str(yeardoy_end), select_region))
+
+    tb_ds.to_netcdf(output_file)
