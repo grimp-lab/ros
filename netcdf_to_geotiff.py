@@ -17,6 +17,7 @@ ds = xr.open_dataset(file)
 ds
 
 
+
 # Select the data to write
 #ds_towrite = ds.sel(channel='37V',time='2023-01-01',orbit='M')
 ds_towrite = ds.sel(channel='19H',time=0,orbit='M')

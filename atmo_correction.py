@@ -53,75 +53,86 @@ if __name__ == '__main__':
     
     #read precipitable water from NARR file (one nc file per year)
     folder_project = 'D:/JALANGLOIS/'
-    start_date = dt.datetime(2023, 1, 1)
-    end_date = dt.datetime(2023, 1, 31)
-    year = start_date.year
-    pwat_file = os.path.join(folder_project, 'pwat', 'pr_wtr.%s.nc'%(str(year)))
-    hemisphere = 'N'
-    select_region = 'aac'
-
-    yeardoy_start = start_date.strftime('%Y%j')
-    yeardoy_end = end_date.strftime('%Y%j')
+    pwat_folder = os.path.join(folder_project, 'pwat')
+    tb_folder = os.path.join(folder_project, 'Measure','combined')
+    output_folder = os.path.join(folder_project, 'Measure','combined')
+    years = [2020]
     
+    #create output folder if it does not exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
 
-    # Define the CRS for NARR (Northern Lambert Conformal Conic)
-    narr_crs = CRS.from_proj4 ('+proj=lcc +lat_0=50 +lon_0=-107 +lat_1=50 +lat_2=50 +x_0=5632642.22547 +y_0=4612545.65137 +datum=WGS84 +units=m +no_defs +type=crs')
-
-
-    #Path to the file with brightness temperature that needs to be corrected
-    tb_file = os.path.join(folder_project, 'Measure','combined', str(year), 'tb_%s_%s_%s.nc'%(str(yeardoy_start), str(yeardoy_end), select_region))
-
-    #open precipitable water in the atmosphere file from NARR
-    # Load the datasets 
-    pr_wtr_ds = xr.open_dataset(pwat_file)
-
-
-    # load brightness temperature file
-    tb_ds = xr.open_dataset(tb_file)
-
-    #assign projection to tb_ds
-    tb_ds = tb_ds.rio.write_crs(CRS.from_epsg(6931))
-
-
-    #drop lat lon coordinates to keep only x and y
-    pr_wtr_ds = pr_wtr_ds.drop(['lat', 'lon'])
-
-
-    # Assign CRS to pr_wtr and reproject to EPSG:6931
-    pr_wtr_ds = pr_wtr_ds.rio.write_crs(narr_crs.to_string())
-
-    pr_wtr_reprojected = pr_wtr_ds['pr_wtr'].rio.reproject('EPSG:6931')
-
-    # Use the correct coordinates for spatial alignment with the file for Brightness Temperature
-    pr_wtr_aligned = pr_wtr_reprojected.interp_like(tb_ds, method='nearest')
-
-    # Resample pr_wtr to match TB's temporal resolution
-    pr_wtr_resampled = pr_wtr_aligned.interp(time=tb_ds.time)
-
-    #add precipitable water as a variable in the dataset of the Brightness temperature
-    tb_ds['pr_wtr'] = pr_wtr_resampled.sel(time=tb_ds.time)
     
-    #Calculate a new TB_corr variables with atmospheric correction using precipitable water
-
-    #create a list of with the variables names including TB, but without std_dev
-    tb_vars = [var for var in tb_ds.data_vars if 'TB' in var and 'std_dev' not in var]
-
-    for tb_var in tb_vars:
-        #extract the frequency of the channel and remove H or V
-        freq = tb_var.split('_')[1].replace('H','').replace('V','')
+    for year in years:
+        pwat_file = os.path.join(pwat_folder, 'pr_wtr.%s.nc'%(str(year)))
+        hemisphere = 'N'
+        select_region = 'aac'
         
-        #get the atmospheric correction parameters
-        atm_tb_up_params = atm_tb_up(int(freq))
-        atm_trans_params = atm_trans(int(freq))
+
+        # Define the CRS for NARR (Northern Lambert Conformal Conic)
+        narr_crs = CRS.from_proj4 ('+proj=lcc +lat_0=50 +lon_0=-107 +lat_1=50 +lat_2=50 +x_0=5632642.22547 +y_0=4612545.65137 +datum=WGS84 +units=m +no_defs +type=crs')
+
+
+        #Path to the file with brightness temperature that needs to be corrected
+        tb_file = os.path.join(tb_folder, 'tb_%s_%s.nc'%(str(year), select_region))
+
+        #open precipitable water in the atmosphere file from NARR
+        # Load the datasets 
+        print("opening file with precipitable water variable: ", pwat_file)
+        pr_wtr_ds = xr.open_dataset(pwat_file)
+
+
+        # load brightness temperature file
+        print("opening file with brightness temperature data: ", tb_file)
+        tb_ds = xr.open_dataset(tb_file)
+
+        #assign projection to tb_ds
+        tb_ds = tb_ds.rio.write_crs(CRS.from_epsg(6931))
+
+
+        #drop lat lon coordinates to keep only x and y
+        pr_wtr_ds = pr_wtr_ds.drop(['lat', 'lon'])
+
+
+        # Assign CRS to pr_wtr and reproject to EPSG:6931
+        pr_wtr_ds = pr_wtr_ds.rio.write_crs(narr_crs.to_string())
+
+
+        print("reprojecting precipitable water data to EPSG:6931")
+        pr_wtr_reprojected = pr_wtr_ds['pr_wtr'].rio.reproject('EPSG:6931')
+
+        # Use the correct coordinates for spatial alignment with the file for Brightness Temperature
+        pr_wtr_aligned = pr_wtr_reprojected.interp_like(tb_ds, method='nearest')
+
+        # Resample pr_wtr to match TB's temporal resolution
+        pr_wtr_resampled = pr_wtr_aligned.interp(time=tb_ds.time)
+
+        #add precipitable water as a variable in the dataset of the Brightness temperature
+        tb_ds['pr_wtr'] = pr_wtr_resampled.sel(time=tb_ds.time)
         
-        #calculate the atmospheric correction
-        atm_tb_up_ds = atm_tb_up_params[0] * tb_ds['pr_wtr'] + atm_tb_up_params[1]
-        atm_trans_ds = atm_trans_params[0] * tb_ds['pr_wtr'] + atm_trans_params[1]
+        #Calculate a new TB_corr variables with atmospheric correction using precipitable water
 
-        #calculate the corrected TB and replace the original TB
-        tb_ds[tb_var] = tb_ds[tb_var] - atm_tb_up_ds/atm_trans_ds
+        #create a list of the variable names including TB, but without std_dev
+        tb_vars = [var for var in tb_ds.data_vars if 'TB' in var and 'std_dev' not in var]
 
-    #write as netcdf
-    output_file = os.path.join(folder_project, 'Measure','combined', str(year), 'corr_tb_%s_%s_%s.nc'%(str(yeardoy_start), str(yeardoy_end), select_region))
+        for tb_var in tb_vars:
+            #extract the frequency of the channel and remove H or V
+            freq = tb_var.split('_')[1].replace('H','').replace('V','')
 
-    tb_ds.to_netcdf(output_file)
+            
+            #get the atmospheric correction parameters
+            atm_tb_up_params = atm_tb_up(int(freq))
+            atm_trans_params = atm_trans(int(freq))
+            
+            #calculate the atmospheric correction
+            print("Calculating atmospheric correction for frequency %s"%(freq))
+            atm_tb_up_ds = atm_tb_up_params[0] * tb_ds['pr_wtr'] + atm_tb_up_params[1]
+            atm_trans_ds = atm_trans_params[0] * tb_ds['pr_wtr'] + atm_trans_params[1]
+
+            #calculate the corrected TB and replace the original TB
+            tb_ds[tb_var] = tb_ds[tb_var] - atm_tb_up_ds/atm_trans_ds
+
+        #write as netcdf
+        output_file = os.path.join(output_folder, 'corr_tb_%s_%s.nc'%(str(year), select_region))
+        print("writing to file: ", output_file)
+        tb_ds.to_netcdf(output_file)

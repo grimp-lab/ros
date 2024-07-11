@@ -7,3 +7,8 @@ detect_ros.py
 test.ipynb
 test_grp.ipynb
 build_netcdf_snowcover.ipynb
+test_notebooks/download_snowcover.ipynb
+test_notebooks/snow_condition.ipynb
+test_notebooks/test_filter_cetb_files.ipynb
+test_notebooks/test_ims.ipynb
+test_notebooks/test_snow_cover.ipynb

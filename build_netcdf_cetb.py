@@ -1,6 +1,6 @@
 import xarray as xr
 import pandas as pd
-#import geopandas as gpd
+import geopandas as gpd
 import os
 from datetime import datetime, timedelta
 from multiprocessing import Pool
@@ -32,6 +32,50 @@ __maintainer__ = "Josée-Anne Langlois"
 __email__ = "josee-anne.langlois@usherbrooke.ca"
 __status__ = "Dvp"
 __date__ = "6.2024"
+
+
+def find_missing_channels(df, year):
+    # Define the expected channels and orbits
+    expected_channels = set(['19H', '19V', '37H', '37V'])
+    expected_orbits = set(['M', 'E'])
+
+    # Generate a list of all days in the year
+    if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+        total_days = 366
+    else:
+        total_days = 365
+    days = list(range(1, total_days + 1))
+
+    # Initialize a list to collect missing channel info
+    missing_info = []
+
+    # Extract the DOY from the YYYYDOY format
+    df['DOY'] = df['date'].astype(str).str[-3:].astype(int)
+    
+    # Iterate over each day and orbit to check for missing channels
+    for day in days:
+        for orbit in expected_orbits:
+            # Filter the dataframe for the specific day and orbit
+            day_orbit_df = df[(df['DOY'] == day) & (df['orbit'] == orbit)]
+            
+            if day_orbit_df.empty:
+                # If there's no data for this day and orbit, all channels are missing
+                missing_channels = expected_channels
+            else:
+                # Get the available channels for the day and orbit
+                available_channels = set(day_orbit_df['channel'])
+                
+                # Identify the missing channels
+                missing_channels = expected_channels - available_channels
+            
+            # If there are missing channels, add the info to the list
+            if missing_channels:
+                missing_info.append({'day': day, 'orbit': orbit, 'missing_channels': list(missing_channels)})
+    
+    # Convert the list to a dataframe for better readability
+    missing_df = pd.DataFrame(missing_info)
+    
+    return missing_df
 
 def load_file(task):
     """Load a NetCDF file and return the dataset."""
@@ -121,18 +165,14 @@ pattern = re.compile(
 if __name__ == '__main__':
     #Parameters to be set by user
     platform = 'SSMIS'
-    sensor = 'F11'
+    sensor = 'F18'
     hemisphere = 'N'
-    select_region = 'aac'
-     #bounding box of the region of interest in EPSG:6931
-    minx = -2324661.48
-    maxx = -416929.02
-    miny = -717806.49
-    maxy =  1172121.49
+    region = 'aac'
 
-    start_date = datetime(1997, 9, 1)
-    end_date = datetime(1997, 9, 2)
-    channels = ['19H','19V','37V','37H']
+    start_date = datetime(2019, 1, 1)
+    end_date = datetime(2019, 12, 31)
+    channels_625 = ['19H','19V']
+    channels_3125 = ['37V','37H']
 
     #extract year and yeardoy (with 3digits) from start_date and end_date
     year = start_date.year
@@ -140,51 +180,70 @@ if __name__ == '__main__':
     yeardoy_end = end_date.strftime('%Y%j')
 
     # Define the number of processes to use to parallel the processing of daily files
-    num_processes = 8  # You can adjust this based on your system's capabilities
+    num_processes = 6  # You can adjust this based on your system's capabilities
 
 
     ''' path for local computer JALANGLOIS'''
-    # #path to folder where the Measure directory is with daily netcdf TB data
-    # input_folder = 'D:/JALANGLOIS/'
-    # #paht to the folder where to find the grid file
-    # grid_folder = 'D:/JALANGLOIS/Measure/tool'
-    # #path where the combined netcdf will be written
-    # output_base_folder = 'D:/JALANGLOIS/'
+    #path to folder where the Measure directory is with daily netcdf TB data
+    input_folder = 'D:/JALANGLOIS/'
+    #paht to the folder where to find the grid file
+    grid_folder = 'D:/JALANGLOIS/Measure/tool'
+    #path where the combined netcdf will be written
+    output_base_folder = 'D:/JALANGLOIS/'
 
-    # #create a list of the files in a directory
-    # measure_folder = os.path.join(input_folder,"Measure",sensor+'_'+platform, str(year))
-    # # Create a list of file paths for the NetCDF files
-    # files_list = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+    #create a list of the files in a directory
+    measure_folder = os.path.join(input_folder,"Measure",sensor+'_'+platform, str(year))
+    # Create a list of file paths for the NetCDF files
+    files_list = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+    
+    #Define the path to the shapefile that defines the region of interest
+    region_path = os.path.join(input_folder,'regions', region, '%s_moins_1500m.shp'%(region))  #"/mnt/f/Input/%s/%s.shp"%(select_region, select_region)
+    
     ''' end of paths for local computer JALANGLOIS'''
 
     ''' paths for behemoth'''
-    #path to folder where the Measure directory is with daily netcdf TB data
-    input_folder = 'D:/Brightness_temperature'
-    #paht to the folder where to find the grid file
-    grid_folder = 'F:/tool'
-    #path where the combined netcdf will be written
-    output_base_folder = 'H:/'
+    # #path to folder where the Measure directory is with daily netcdf TB data
+    # input_folder = 'D:/Brightness_temperature'
+    # #paht to the folder where to find the grid file
+    # grid_folder = 'F:/tool'
+    # #path where the combined netcdf will be written
+    # output_base_folder = 'H:/'
     
 
-    files_list = []
-    for channel in channels:
-        measure_folder = os.path.join(input_folder,'Measure', channel+'_' + sensor)
-        try:
-            #Create a list of file paths for the NetCDF files
-            files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+    # files_list = []
+    # for channel in channels:
+    #     measure_folder = os.path.join(input_folder,'Measure', channel+'_' + sensor)
+    #     try:
+    #         #Create a list of file paths for the NetCDF files
+    #         files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
 
-            files_list.extend(files)
-        except FileNotFoundError:
-            print(f"Directory not found: {measure_folder}")
-        except PermissionError:
-            print(f"Permission denied: {measure_folder}")
-    '''end of paths for behemoth'''
+    #         files_list.extend(files)
+    #     except FileNotFoundError:
+    #         print(f"Directory not found: {measure_folder}")
+    #     except PermissionError:
+    #         print(f"Permission denied: {measure_folder}")
+
+    # #Define the path to the shapefile that defines the region of interest
+    # region_path = "/mnt/f/Input/%s/%s.shp"%(region, region)
+    
+    # '''end of paths for behemoth'''
     
     # get the path to the file with the grid information for the 3.125 km resolution (all data will be align to this grid)
     geo_file3125 = os.path.join(grid_folder,'EASE2_%s3.125km.geolocation.v0.9.nc'%(hemisphere))
         
     #folder where the combined netcdf file of TB aligned with 3.125 grid will be written
-    output_folder = os.path.join(output_base_folder, 'Measure', 'combined', str(year))
+    output_folder = os.path.join(output_base_folder, 'Measure', 'combined')
+    
+
+    # Use the region shapefile to extract the Bounding Box of the data to keep
+    area_gdf = gpd.read_file(region_path)
+
+    # Reproject the GeoDataFrame to EPSG:6931
+    gdf_6931 = area_gdf.to_crs(6931) 
+
+    # Get the bounding box of the GeoDataFrame
+    bbox = gdf_6931.total_bounds  # returns (minx, miny, maxx, maxy)
+    minx, miny, maxx, maxy = bbox
 
 
     #create directory if it does not exist
@@ -212,12 +271,37 @@ if __name__ == '__main__':
     df['maxy'] = maxy
 
 
-    #filter the dataframe between yeardoy_start and yeardoy_end and for specific channels
-    filtered_df = df[(df['date'].between(yeardoy_start, yeardoy_end)) & (df['channel'].isin(channels))]
+    
+    # keep only 37V and 37H channels with 3.125 km resolution and  19V and 19H with 6.25 km resolution
+    filtered_df_37 = df[(df['channel'].isin(channels_3125)) & (df['grid'].isin(['N3.125km']))]
+    filtered_df_19 = df[(df['channel'].isin(channels_625)) & (df['grid'].isin(['N6.25km']))]
+    
+    filtered_df = pd.concat([filtered_df_37, filtered_df_19])
+    
+    #filter the dataframe between yeardoy_start and yeardoy_end
+    filtered_df = filtered_df[(filtered_df['date'].between(yeardoy_start, yeardoy_end))]
 
+    # In some cases, there might be some data duplication, so we order the dataframe by date, orbit and channel and remove the duplicates
+    # Sort by date, orbit, and input (descending)
+    df_sorted = filtered_df.sort_values(by=['date', 'orbit', 'channel','input'], ascending=[True, True, True, True])
+
+    # Drop duplicates based on date, orbit, and channel
+    df_unique = df_sorted.drop_duplicates(subset=['date', 'orbit','channel'], keep='first')
+
+    
     #print number of files to process (number of rows in the dataframe)
-    #print(filtered_df)
-    print('Nb of files to process : ',filtered_df.shape[0])
+    print('Nb of files to process : ',df_unique.shape[0])
+
+    #write info on files as csv file and save it in the input folder
+    df_unique.to_csv(os.path.join(output_folder, 'list_of_files_%s_%s.csv'%(str(year), region)))
+    
+    # extract missing dates
+    missing_channels = find_missing_channels(df_unique, year)
+
+    #write as csv
+    missing_channels.to_csv(os.path.join(output_folder, f'missing_channels_{year}_{region}.csv'), index=False)
+
+    
     start = time.time()
  
     # Convert DataFrame to a list of dictionaries
@@ -237,24 +321,9 @@ if __name__ == '__main__':
     combined_ds = xr.combine_by_coords(datasets, combine_attrs='override')
 
     
-    #Mask data outside the islands (from the shapefile of the region of interest, which is a buffer in of the islands of 1500m to remove coastal and big lakes)
-    # # Create a mask from the polygons
-    # mask = region.geometry.apply(mapping)   # Convert the GeoDataFrame to a format that rasterio understands
-
-    # # Rasterize the mask
-    # mask_array = rasterio.features.geometry_mask(mask, transform=combined_ds.rio.transform(), invert=True, out_shape=(combined_ds.dims['y'], combined_ds.dims['x']))
-    
-    # # Expand the mask to match the dimensions of the xarray dataset
-    # mask_xr = xr.DataArray(mask_array, coords=[combined_ds.coords['y'], combined_ds.coords['x']], dims=['y', 'x'])
-    
-    # # Apply the mask to the xarray dataset
-    # ds_masked = combined_ds.where(mask_xr, drop=True)
-    
-    # #write the data to a netcdf file
-    # ds_masked.to_netcdf(os.path.join(output_folder, 'tb_%s_%s_%s_masked.nc'%(str(yeardoy_start), str(yeardoy_end), select_region)))
-    combined_ds.to_netcdf(os.path.join(output_folder, 'tb_%s_%s_%s.nc'%(str(yeardoy_start), str(yeardoy_end), select_region)))
+    # Write the combined dataset to a NetCDF file
+    combined_ds.to_netcdf(os.path.join(output_folder, 'tb_%s_%s.nc'%(str(year), region)))
     
     end = time.time()
-    print("region = %s"%region)
     print("from %s to %s "%(start_date, end_date))
     print("Temps total = " + str(round(end - start, 1)) + " sec")
