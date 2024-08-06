@@ -3,7 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 
 folder_project = 'D:/JALANGLOIS/'
-years = [2023]
+start_year = 2004
+end_year = 2015
+years = range(start_year, end_year+1)
 
 for year in years:
 

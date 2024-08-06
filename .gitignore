@@ -12,3 +12,8 @@ test_notebooks/snow_condition.ipynb
 test_notebooks/test_filter_cetb_files.ipynb
 test_notebooks/test_ims.ipynb
 test_notebooks/test_snow_cover.ipynb
+ros_analyses.ipynb
+ros_multiyear_file.ipynb
+build_netcdf_cetb_2016.py
+build_netcdf_cetb_2017.py
+build_netcdf_cetb_2018.py

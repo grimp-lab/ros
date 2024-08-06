@@ -1,5 +1,5 @@
 # preprocess_ros
-Python code to process passive microwave data brightess temperature (CETB) (MEASURE database, (Brodzik et al., 2016)) into daily filtered and corrected data and calculate GRP for ros detection (Dolant et al., 2016, Sasseville et al., 2024))
+Python code to process passive microwave data brightess temperature (CETB) (MEASURE database, (Brodzik et al., 2016)) into daily filtered and corrected data and calculate GRP for ros detection (Dolant et al., 2016, Sasseville et al., 2024)
 
 
 # Optimized code 

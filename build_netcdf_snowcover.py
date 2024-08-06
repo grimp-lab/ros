@@ -46,7 +46,9 @@ if __name__ == '__main__':
     resolution = '4km'
     region = 'aac'
     snow_product = 'NOAA-IMS-4km'
-    years = [2019,2020,2023]
+    start_year = 2004
+    end_year = 2015
+    years = range(start_year, end_year+1)
 
     for year in years:
 

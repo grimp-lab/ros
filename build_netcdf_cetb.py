@@ -169,15 +169,14 @@ if __name__ == '__main__':
     hemisphere = 'N'
     region = 'aac'
 
-    start_date = datetime(2019, 1, 1)
-    end_date = datetime(2019, 12, 31)
+    # start_date = datetime(2023, 1, 1)
+    # end_date = datetime(2023, 12, 31)
+    start_year = 2018
+    end_year = 2018
+    years = range(start_year, end_year+1)
+    
     channels_625 = ['19H','19V']
     channels_3125 = ['37V','37H']
-
-    #extract year and yeardoy (with 3digits) from start_date and end_date
-    year = start_date.year
-    yeardoy_start = start_date.strftime('%Y%j')
-    yeardoy_end = end_date.strftime('%Y%j')
 
     # Define the number of processes to use to parallel the processing of daily files
     num_processes = 6  # You can adjust this based on your system's capabilities
@@ -191,15 +190,11 @@ if __name__ == '__main__':
     #path where the combined netcdf will be written
     output_base_folder = 'D:/JALANGLOIS/'
 
-    #create a list of the files in a directory
-    measure_folder = os.path.join(input_folder,"Measure",sensor+'_'+platform, str(year))
-    # Create a list of file paths for the NetCDF files
-    files_list = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
-    
     #Define the path to the shapefile that defines the region of interest
     region_path = os.path.join(input_folder,'regions', region, '%s_moins_1500m.shp'%(region))  #"/mnt/f/Input/%s/%s.shp"%(select_region, select_region)
-    
-    ''' end of paths for local computer JALANGLOIS'''
+        
+        
+
 
     ''' paths for behemoth'''
     # #path to folder where the Measure directory is with daily netcdf TB data
@@ -208,29 +203,14 @@ if __name__ == '__main__':
     # grid_folder = 'F:/tool'
     # #path where the combined netcdf will be written
     # output_base_folder = 'H:/'
-    
-
-    # files_list = []
-    # for channel in channels:
-    #     measure_folder = os.path.join(input_folder,'Measure', channel+'_' + sensor)
-    #     try:
-    #         #Create a list of file paths for the NetCDF files
-    #         files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
-
-    #         files_list.extend(files)
-    #     except FileNotFoundError:
-    #         print(f"Directory not found: {measure_folder}")
-    #     except PermissionError:
-    #         print(f"Permission denied: {measure_folder}")
-
     # #Define the path to the shapefile that defines the region of interest
     # region_path = "/mnt/f/Input/%s/%s.shp"%(region, region)
-    
-    # '''end of paths for behemoth'''
-    
+
+            
     # get the path to the file with the grid information for the 3.125 km resolution (all data will be align to this grid)
     geo_file3125 = os.path.join(grid_folder,'EASE2_%s3.125km.geolocation.v0.9.nc'%(hemisphere))
         
+    
     #folder where the combined netcdf file of TB aligned with 3.125 grid will be written
     output_folder = os.path.join(output_base_folder, 'Measure', 'combined')
     
@@ -250,80 +230,115 @@ if __name__ == '__main__':
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
-    # Extract components from filenames
-    extracted_info = []
-    for filepath in files_list:
-        #print(filepath)
-        filename = os.path.basename(filepath)
-        #print(filename)
-        match = pattern.match(filename)
-        if match:
-            extracted_info.append(match.groupdict())
-            #add file path as a key to the dictionary
-            extracted_info[-1]['filepath'] = filepath
-
-    # Convert to DataFrame for easy manipulation
-    df = pd.DataFrame(extracted_info)
-    df['geo_file3125'] = geo_file3125
-    df['minx'] = minx
-    df['maxx'] = maxx
-    df['miny'] = miny
-    df['maxy'] = maxy
-
-
-    
-    # keep only 37V and 37H channels with 3.125 km resolution and  19V and 19H with 6.25 km resolution
-    filtered_df_37 = df[(df['channel'].isin(channels_3125)) & (df['grid'].isin(['N3.125km']))]
-    filtered_df_19 = df[(df['channel'].isin(channels_625)) & (df['grid'].isin(['N6.25km']))]
-    
-    filtered_df = pd.concat([filtered_df_37, filtered_df_19])
-    
-    #filter the dataframe between yeardoy_start and yeardoy_end
-    filtered_df = filtered_df[(filtered_df['date'].between(yeardoy_start, yeardoy_end))]
-
-    # In some cases, there might be some data duplication, so we order the dataframe by date, orbit and channel and remove the duplicates
-    # Sort by date, orbit, and input (descending)
-    df_sorted = filtered_df.sort_values(by=['date', 'orbit', 'channel','input'], ascending=[True, True, True, True])
-
-    # Drop duplicates based on date, orbit, and channel
-    df_unique = df_sorted.drop_duplicates(subset=['date', 'orbit','channel'], keep='first')
-
-    
-    #print number of files to process (number of rows in the dataframe)
-    print('Nb of files to process : ',df_unique.shape[0])
-
-    #write info on files as csv file and save it in the input folder
-    df_unique.to_csv(os.path.join(output_folder, 'list_of_files_%s_%s.csv'%(str(year), region)))
-    
-    # extract missing dates
-    missing_channels = find_missing_channels(df_unique, year)
-
-    #write as csv
-    missing_channels.to_csv(os.path.join(output_folder, f'missing_channels_{year}_{region}.csv'), index=False)
-
-    
     start = time.time()
- 
-    # Convert DataFrame to a list of dictionaries
-    tasks = filtered_df.to_dict(orient='records')        
- 
- 
-    
-    # Create a multiprocessing pool
-    with Pool(num_processes) as pool:
-        # Load and process data in parallel
-        datasets = pool.map(load_file, tasks)
 
-    #print(datasets)
-    # Combine the datasets
-    datasets = [ds for ds in datasets if ds is not None]
-    #print(datasets)
-    combined_ds = xr.combine_by_coords(datasets, combine_attrs='override')
+    for year in years:
+        #extract year and yeardoy (with 3digits) from start_date and end_date
+        start_date = datetime(year, 1, 1)
+        end_date = datetime(year, 12, 31)
+        yeardoy_start = start_date.strftime('%Y%j')
+        yeardoy_end = end_date.strftime('%Y%j')
 
+        
+        ''' path for local computer JALANGLOIS'''
+        #create a list of the files in a directory
+        measure_folder = os.path.join(input_folder,"Measure",sensor+'_'+platform, str(year))
+        # Create a list of file paths for the NetCDF files
+        files_list = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+        
+        
+
+        
+        ''' paths for behemoth'''
+        # files_list = []
+        # for channel in channels:
+        #     measure_folder = os.path.join(input_folder,'Measure', channel+'_' + sensor)
+        #     try:
+        #         #Create a list of file paths for the NetCDF files
+        #         files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+
+        #         files_list.extend(files)
+        #     except FileNotFoundError:
+        #         print(f"Directory not found: {measure_folder}")
+        #     except PermissionError:
+        #         print(f"Permission denied: {measure_folder}")
+
+        
+        
+
+
+        # Extract components from filenames
+        extracted_info = []
+        for filepath in files_list:
+            #print(filepath)
+            filename = os.path.basename(filepath)
+            #print(filename)
+            match = pattern.match(filename)
+            if match:
+                extracted_info.append(match.groupdict())
+                #add file path as a key to the dictionary
+                extracted_info[-1]['filepath'] = filepath
+
+        # Convert to DataFrame for easy manipulation
+        df = pd.DataFrame(extracted_info)
+        df['geo_file3125'] = geo_file3125
+        df['minx'] = minx
+        df['maxx'] = maxx
+        df['miny'] = miny
+        df['maxy'] = maxy
+
+
+        
+        # keep only 37V and 37H channels with 3.125 km resolution and  19V and 19H with 6.25 km resolution
+        filtered_df_37 = df[(df['channel'].isin(channels_3125)) & (df['grid'].isin(['N3.125km']))]
+        filtered_df_19 = df[(df['channel'].isin(channels_625)) & (df['grid'].isin(['N6.25km']))]
+        
+        filtered_df = pd.concat([filtered_df_37, filtered_df_19])
+        
+        #filter the dataframe between yeardoy_start and yeardoy_end
+        filtered_df = filtered_df[(filtered_df['date'].between(yeardoy_start, yeardoy_end))]
+
+        # In some cases, there might be some data duplication, so we order the dataframe by date, orbit and channel and remove the duplicates
+        # Sort by date, orbit, and input (descending)
+        df_sorted = filtered_df.sort_values(by=['date', 'orbit', 'channel','input'], ascending=[True, True, True, True])
+
+        # Drop duplicates based on date, orbit, and channel
+        df_unique = df_sorted.drop_duplicates(subset=['date', 'orbit','channel'], keep='first')
+
+        
+        #print number of files to process (number of rows in the dataframe)
+        print('Nb of files to process : ',df_unique.shape[0])
+
+        #write info on files as csv file and save it in the input folder
+        df_unique.to_csv(os.path.join(output_folder, 'list_of_files_%s_%s.csv'%(str(year), region)))
+        
+        # extract missing dates
+        missing_channels = find_missing_channels(df_unique, year)
+
+        #write as csv
+        missing_channels.to_csv(os.path.join(output_folder, f'missing_channels_{year}_{region}.csv'), index=False)
+
+        
     
-    # Write the combined dataset to a NetCDF file
-    combined_ds.to_netcdf(os.path.join(output_folder, 'tb_%s_%s.nc'%(str(year), region)))
+        # Convert DataFrame to a list of dictionaries
+        tasks = filtered_df.to_dict(orient='records')        
     
+        
+        # Create a multiprocessing pool
+        with Pool(num_processes) as pool:
+            # Load and process data in parallel
+            datasets = pool.map(load_file, tasks)
+
+        #print(datasets)
+        # Combine the datasets
+        datasets = [ds for ds in datasets if ds is not None]
+        #print(datasets)
+        combined_ds = xr.combine_by_coords(datasets, combine_attrs='override')
+
+        
+        # Write the combined dataset to a NetCDF file
+        combined_ds.to_netcdf(os.path.join(output_folder, 'tb_%s_%s.nc'%(str(year), region)))
+        
     end = time.time()
     print("from %s to %s "%(start_date, end_date))
     print("Temps total = " + str(round(end - start, 1)) + " sec")

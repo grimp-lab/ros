@@ -56,7 +56,14 @@ if __name__ == '__main__':
     pwat_folder = os.path.join(folder_project, 'pwat')
     tb_folder = os.path.join(folder_project, 'Measure','combined')
     output_folder = os.path.join(folder_project, 'Measure','combined')
-    years = [2020]
+    start_year = 2018
+    end_year = 2018
+    years = range(start_year, end_year+1)
+    print("years: ", years)
+
+    # Define the CRS for NARR (Northern Lambert Conformal Conic)
+    narr_crs = CRS.from_proj4 ('+proj=lcc +lat_0=50 +lon_0=-107 +lat_1=50 +lat_2=50 +x_0=5632642.22547 +y_0=4612545.65137 +datum=WGS84 +units=m +no_defs +type=crs')
+
     
     #create output folder if it does not exist
     if not os.path.exists(output_folder):
@@ -68,10 +75,6 @@ if __name__ == '__main__':
         hemisphere = 'N'
         select_region = 'aac'
         
-
-        # Define the CRS for NARR (Northern Lambert Conformal Conic)
-        narr_crs = CRS.from_proj4 ('+proj=lcc +lat_0=50 +lon_0=-107 +lat_1=50 +lat_2=50 +x_0=5632642.22547 +y_0=4612545.65137 +datum=WGS84 +units=m +no_defs +type=crs')
-
 
         #Path to the file with brightness temperature that needs to be corrected
         tb_file = os.path.join(tb_folder, 'tb_%s_%s.nc'%(str(year), select_region))
@@ -125,7 +128,7 @@ if __name__ == '__main__':
             atm_trans_params = atm_trans(int(freq))
             
             #calculate the atmospheric correction
-            print("Calculating atmospheric correction for frequency %s"%(freq))
+            print("Calculating atmospheric correction for frequency %s"%(tb_var))
             atm_tb_up_ds = atm_tb_up_params[0] * tb_ds['pr_wtr'] + atm_tb_up_params[1]
             atm_trans_ds = atm_trans_params[0] * tb_ds['pr_wtr'] + atm_trans_params[1]
 
