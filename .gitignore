@@ -17,3 +17,10 @@ ros_multiyear_file.ipynb
 build_netcdf_cetb_2016.py
 build_netcdf_cetb_2017.py
 build_netcdf_cetb_2018.py
+build_netcdf_cetb_1987.py
+build_netcdf_cetb_1991.py
+detect_ros_withoutsnowcon.py
+read_IMS.py
+test_notebooks/build_netcdf_per_region.ipynb
+test_notebooks/build_netcdf_tb_time.ipynb
+test_notebooks/map_monthly_ros.ipynb

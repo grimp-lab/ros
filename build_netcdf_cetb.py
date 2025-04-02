@@ -23,7 +23,7 @@ Purpose: Load brightness temperature from the CETB data set for a period of time
 
 
 Revisions:
-date     |               reason
+09-08-2024     |               Adapt to the structure of the CETB data downloaded for the previous years
 
 """
 __author__ = "Josée-Anne Langlois"
@@ -94,7 +94,7 @@ def load_file(task):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             warnings.simplefilter("ignore", category=UserWarning)
-            ds = xr.load_dataset(filepath, decode_times=False)
+            ds = xr.load_dataset(filepath,  engine='netcdf4', decode_times=False)
 
         
         
@@ -129,9 +129,7 @@ def load_file(task):
         ds = ds.expand_dims({'orbit': [task['orbit']]})
         ds = ds.sel(x=slice(task['minx'], task['maxx']), y=slice(task['maxy'], task['miny']))
 
-        '''19 GHz data have a resolution of 6.25 so np.repeat is used to downscale the data to 3.125 
-        (we are just repeating the tb values 4 times each in both axis to have the same grid of 37 
-        Ghz tb at 3.125 resolution)'''
+        '''19 GHz data have a resolution of 6.25 so interpolation is done to downscale the data to 3.125 '''
         ds = ds.interp_like(grid3125, method='nearest')
 
         #keep only crs, TB, TB_std_dev and TB_time variables
@@ -160,19 +158,16 @@ pattern = re.compile(
     r"(?P<input>\w+)-"
     r"(?P<version>v[\d.]+)\.nc"
 )
-    
+
 
 if __name__ == '__main__':
     #Parameters to be set by user
-    platform = 'SSMIS'
-    sensor = 'F18'
     hemisphere = 'N'
     region = 'aac'
 
-    # start_date = datetime(2023, 1, 1)
-    # end_date = datetime(2023, 12, 31)
-    start_year = 2018
-    end_year = 2018
+
+    start_year = 2005
+    end_year = 2015
     years = range(start_year, end_year+1)
     
     channels_625 = ['19H','19V']
@@ -182,37 +177,23 @@ if __name__ == '__main__':
     num_processes = 6  # You can adjust this based on your system's capabilities
 
 
-    ''' path for local computer JALANGLOIS'''
     #path to folder where the Measure directory is with daily netcdf TB data
-    input_folder = 'D:/JALANGLOIS/'
+    input_folder = 'E:/Measure'
     #paht to the folder where to find the grid file
-    grid_folder = 'D:/JALANGLOIS/Measure/tool'
+    grid_folder = 'E:/Measure/tool'
     #path where the combined netcdf will be written
-    output_base_folder = 'D:/JALANGLOIS/'
+    output_base_folder = input_folder
 
     #Define the path to the shapefile that defines the region of interest
-    region_path = os.path.join(input_folder,'regions', region, '%s_moins_1500m.shp'%(region))  #"/mnt/f/Input/%s/%s.shp"%(select_region, select_region)
+    region_path = os.path.join('E:/regions', region, '%s_moins_1500m.shp'%(region))  
         
-        
-
-
-    ''' paths for behemoth'''
-    # #path to folder where the Measure directory is with daily netcdf TB data
-    # input_folder = 'D:/Brightness_temperature'
-    # #paht to the folder where to find the grid file
-    # grid_folder = 'F:/tool'
-    # #path where the combined netcdf will be written
-    # output_base_folder = 'H:/'
-    # #Define the path to the shapefile that defines the region of interest
-    # region_path = "/mnt/f/Input/%s/%s.shp"%(region, region)
-
-            
+           
     # get the path to the file with the grid information for the 3.125 km resolution (all data will be align to this grid)
     geo_file3125 = os.path.join(grid_folder,'EASE2_%s3.125km.geolocation.v0.9.nc'%(hemisphere))
         
     
     #folder where the combined netcdf file of TB aligned with 3.125 grid will be written
-    output_folder = os.path.join(output_base_folder, 'Measure', 'combined')
+    output_folder = os.path.join(output_base_folder, 'combined', region)
     
 
     # Use the region shapefile to extract the Bounding Box of the data to keep
@@ -238,49 +219,131 @@ if __name__ == '__main__':
         end_date = datetime(year, 12, 31)
         yeardoy_start = start_date.strftime('%Y%j')
         yeardoy_end = end_date.strftime('%Y%j')
+        channels = channels_3125 + channels_625
 
+        #Define the sensor for the year and if there are multiple sensors for the year define the break date
+        multiplesensor = False
+        if year <1991:
+            sensor = 'F08'
+        elif year == 1991:
+            multiplesensor = True
+            sensors = ['F08', 'F11']
+            break_date = datetime(1991,8,31)
+        elif year >1991 and year <1998:
+            sensor = 'F11'
+        elif year == 1998:
+            multiplesensor = True
+            sensors = ['F11', 'F13']
+            break_date = datetime(1998,8,31)
+        elif year >1998 and year <2008:
+            sensor = 'F13'
+        elif year == 2008:  
+            multiplesensor = True
+            sensors = ['F13', 'F17']
+            break_date = datetime(2008,4,1)
+        elif year >2008 and year <2016:
+            sensor = 'F17'
+        elif year >=2016:
+            sensor = 'F18'
+        else:
+            print(f"Sensor not found for year {year}")
+
+        if multiplesensor:
+            files_list = []
+            before_break = True
+            yeardoy_break = break_date.strftime('%Y%j')
+            df = pd.DataFrame()
+            for sensor in sensors:
+                
+                for channel in channels:
+                    measure_folder = os.path.join(input_folder, channel + '_' + sensor)
+                    #print(measure_folder)
+                    try:
+                        #Create a list of file paths for the NetCDF files
+                        files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+
+
+                        files_list.extend(files)
+                    except FileNotFoundError:
+                        print(f"Directory not found: {measure_folder}")
+                    except PermissionError:
+                        print(f"Permission denied: {measure_folder}")
+                
+                # Extract components from filenames
+                extracted_info = []
+                for filepath in files_list:
+                    #print(filepath)
+                    filename = os.path.basename(filepath)
+                    #print(filename)
+                    match = pattern.match(filename)
+                    if match:
+                        extracted_info.append(match.groupdict())
+                        #add file path as a key to the dictionary
+                        extracted_info[-1]['filepath'] = filepath
+
+                # Convert to DataFrame for easy manipulation
+                df_temp = pd.DataFrame(extracted_info)
+
+                if before_break:
+                    df_temp = df_temp[df_temp['date'].between(yeardoy_start,yeardoy_break)]
+                    before_break = False
+                else:
+                    df_temp = df_temp[df_temp['date'].between(yeardoy_break,yeardoy_end)]
+
+                #add df_temp content to df
+                df = pd.concat([df, df_temp], ignore_index=True)
+        else:
+            if year < 2016:
+                files_list = []
+                for channel in channels:
+                    measure_folder = os.path.join(input_folder, channel + '_' + sensor)
+                    #print(measure_folder)
+                    try:
+                        #Create a list of file paths for the NetCDF files
+                        files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+
+
+                        files_list.extend(files)
+                    except FileNotFoundError:
+                        print(f"Directory not found: {measure_folder}")
+                    except PermissionError:
+                        print(f"Permission denied: {measure_folder}")
+                
+
+            elif year >= 2016:
+                #create a list of the files in a directory
+                measure_folder = os.path.join(input_folder, str(year))
+                # Create a list of file paths for the NetCDF files
+                try:
+                    files_list = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
+                except FileNotFoundError:
+                    print(f"Directory not found: {measure_folder}")
+                except PermissionError:
+                    print(f"Permission denied: {measure_folder}")
+            
+            else:
+                    print('Year not supported')
+            
+            # Extract components from filenames
+            extracted_info = []
+            for filepath in files_list:
+                #print(filepath)
+                filename = os.path.basename(filepath)
+                #print(filename)
+                match = pattern.match(filename)
+                if match:
+                    extracted_info.append(match.groupdict())
+                    #add file path as a key to the dictionary
+                    extracted_info[-1]['filepath'] = filepath
+
+            # Convert to DataFrame for easy manipulation
+            df = pd.DataFrame(extracted_info)
+
+            #filter the dataframe between yeardoy_start and yeardoy_end
+            df = df[df['date'].between(yeardoy_start,yeardoy_end)]
         
-        ''' path for local computer JALANGLOIS'''
-        #create a list of the files in a directory
-        measure_folder = os.path.join(input_folder,"Measure",sensor+'_'+platform, str(year))
-        # Create a list of file paths for the NetCDF files
-        files_list = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
         
-        
-
-        
-        ''' paths for behemoth'''
-        # files_list = []
-        # for channel in channels:
-        #     measure_folder = os.path.join(input_folder,'Measure', channel+'_' + sensor)
-        #     try:
-        #         #Create a list of file paths for the NetCDF files
-        #         files = [os.path.join(measure_folder, fname) for fname in sorted(os.listdir(measure_folder)) if fname.endswith('.nc')]
-
-        #         files_list.extend(files)
-        #     except FileNotFoundError:
-        #         print(f"Directory not found: {measure_folder}")
-        #     except PermissionError:
-        #         print(f"Permission denied: {measure_folder}")
-
-        
-        
-
-
-        # Extract components from filenames
-        extracted_info = []
-        for filepath in files_list:
-            #print(filepath)
-            filename = os.path.basename(filepath)
-            #print(filename)
-            match = pattern.match(filename)
-            if match:
-                extracted_info.append(match.groupdict())
-                #add file path as a key to the dictionary
-                extracted_info[-1]['filepath'] = filepath
-
-        # Convert to DataFrame for easy manipulation
-        df = pd.DataFrame(extracted_info)
+        #add the grid file path and the bounding box to the dataframe
         df['geo_file3125'] = geo_file3125
         df['minx'] = minx
         df['maxx'] = maxx
@@ -294,10 +357,7 @@ if __name__ == '__main__':
         filtered_df_19 = df[(df['channel'].isin(channels_625)) & (df['grid'].isin(['N6.25km']))]
         
         filtered_df = pd.concat([filtered_df_37, filtered_df_19])
-        
-        #filter the dataframe between yeardoy_start and yeardoy_end
-        filtered_df = filtered_df[(filtered_df['date'].between(yeardoy_start, yeardoy_end))]
-
+ 
         # In some cases, there might be some data duplication, so we order the dataframe by date, orbit and channel and remove the duplicates
         # Sort by date, orbit, and input (descending)
         df_sorted = filtered_df.sort_values(by=['date', 'orbit', 'channel','input'], ascending=[True, True, True, True])
@@ -340,5 +400,5 @@ if __name__ == '__main__':
         combined_ds.to_netcdf(os.path.join(output_folder, 'tb_%s_%s.nc'%(str(year), region)))
         
     end = time.time()
-    print("from %s to %s "%(start_date, end_date))
+    print("from %s to %s "%(start_year, end_year))
     print("Temps total = " + str(round(end - start, 1)) + " sec")

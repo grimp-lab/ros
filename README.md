@@ -1,4 +1,4 @@
-# preprocess_ros
+# ros
 Python code to process passive microwave data brightess temperature (CETB) (MEASURE database, (Brodzik et al., 2016)) into daily filtered and corrected data and calculate GRP for ros detection (Dolant et al., 2016, Sasseville et al., 2024)
 
 
@@ -32,7 +32,7 @@ The name of the variables to be corrected in the input file must be TB_[freq][po
 
 ## download_snowcover.py
 
-For the year 2004 to now, daily snow cover extent is available at a resolution of 4km (name of product is NOAA-IMS-4km). This code is used to download a year of daily data in a local repository.
+For the year 2004 to now, daily snow cover extent is available at a resolution of 4km (name of product is NOAA-IMS-4km). This code is used to download a year of daily data in a local repository. For the year 1997 to 2004 : daily snow cover at 24 km resolution NOAA-IMS-24km. Same code is used to download both datasets.
 
 
 ## build_netcdf_snowcover.py
@@ -48,10 +48,10 @@ It also calculates GRP from corrected brightness temperature data to detect Rain
 
 It creates a new variables ROS that has the value 1 if there is snow on the ground and if GRP is below -10. 
 
-A new netcdf file is created will all the variables (corrected TB, GRP, ROS, Snowcover, etc.)
+A new netcdf file is created will the variables (GRP, ROS, Snowcover)
    
-## ros_analyses.ipynb
-This notebook can be used to analyse the ros data for a specific year. It can mask the data to keep only the data on islands and generate monthly maps and statistics for ROS events.
+## ros_event_detection.ipynb
+This code is an alternative ros detection algorithm using clustering algorithme combine with DOlant et a., 2016 GRP. It uses DBScan algo to calculate ROS detection map. 
     
 # References
     Brodzik, M.J. et al. (2016) ‘MEaSUREs Calibrated Enhanced-Resolution Passive Microwave Daily EASE-Grid 2.0 Brightness Temperature ESDR, Version 1’. Boulder, Colorado USA: NASA National Snow and Ice Data Center Distributed Active Archive Center.

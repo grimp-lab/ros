@@ -52,12 +52,13 @@ def atm_trans(freq):
 if __name__ == '__main__':
     
     #read precipitable water from NARR file (one nc file per year)
-    folder_project = 'D:/JALANGLOIS/'
+    folder_project = 'E:/'
+    region = 'aac'
     pwat_folder = os.path.join(folder_project, 'pwat')
-    tb_folder = os.path.join(folder_project, 'Measure','combined')
-    output_folder = os.path.join(folder_project, 'Measure','combined')
-    start_year = 2018
-    end_year = 2018
+    tb_folder = os.path.join(folder_project, 'Measure','combined', region)
+    output_folder = os.path.join(folder_project, 'Measure','combined', region)
+    start_year = 1987
+    end_year = 1987
     years = range(start_year, end_year+1)
     print("years: ", years)
 
@@ -73,11 +74,11 @@ if __name__ == '__main__':
     for year in years:
         pwat_file = os.path.join(pwat_folder, 'pr_wtr.%s.nc'%(str(year)))
         hemisphere = 'N'
-        select_region = 'aac'
+        
         
 
         #Path to the file with brightness temperature that needs to be corrected
-        tb_file = os.path.join(tb_folder, 'tb_%s_%s.nc'%(str(year), select_region))
+        tb_file = os.path.join(tb_folder, 'tb_%s_%s.nc'%(str(year), region))
 
         #open precipitable water in the atmosphere file from NARR
         # Load the datasets 
@@ -136,6 +137,6 @@ if __name__ == '__main__':
             tb_ds[tb_var] = tb_ds[tb_var] - atm_tb_up_ds/atm_trans_ds
 
         #write as netcdf
-        output_file = os.path.join(output_folder, 'corr_tb_%s_%s.nc'%(str(year), select_region))
+        output_file = os.path.join(output_folder, 'corr_tb_%s_%s.nc'%(str(year), region))
         print("writing to file: ", output_file)
         tb_ds.to_netcdf(output_file)
