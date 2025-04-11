@@ -163,11 +163,11 @@ pattern = re.compile(
 if __name__ == '__main__':
     #Parameters to be set by user
     hemisphere = 'N'
-    region = 'aac'
+    region = 'tuk'
 
 
-    start_year = 2005
-    end_year = 2015
+    start_year = 1987
+    end_year = 2000
     years = range(start_year, end_year+1)
     
     channels_625 = ['19H','19V']
@@ -178,14 +178,14 @@ if __name__ == '__main__':
 
 
     #path to folder where the Measure directory is with daily netcdf TB data
-    input_folder = 'E:/Measure'
+    input_folder = 'D:/Measure'
     #paht to the folder where to find the grid file
-    grid_folder = 'E:/Measure/tool'
+    grid_folder = 'D:/Measure/tool'
     #path where the combined netcdf will be written
     output_base_folder = input_folder
 
     #Define the path to the shapefile that defines the region of interest
-    region_path = os.path.join('E:/regions', region, '%s_moins_1500m.shp'%(region))  
+    region_path = os.path.join('D:/regions', region, '%s_moins_1500m.shp'%(region))  
         
            
     # get the path to the file with the grid information for the 3.125 km resolution (all data will be align to this grid)

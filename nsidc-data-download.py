@@ -39,8 +39,8 @@ except ImportError:
 
 short_name = 'NSIDC-0630'
 version = '1'
-time_start = '2023-01-01T00:00:00Z'
-time_end = '2024-01-01T00:00:00Z'
+time_start = '2024-01-01T00:00:00Z'
+time_end = '2025-01-01T00:00:00Z'
 bounding_box = '-180,50,180,90'
 polygon = ''
 filename_filter = '*_N*F18*SIR*'
